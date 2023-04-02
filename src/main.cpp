@@ -72,7 +72,7 @@ const int NOT_DEBOUNCING = 0;
 const int DEBOUNCING = 1;
 
 void loop() {
-  if ((millis()%250) == 0) {
+  if ((millis()%100) == 0) {
     Vo = analogRead(ThermistorPin);
     R2 = R1 * (1023.0 / (float)Vo - 1.0);
     logR2 = log(R2);
