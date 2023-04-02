@@ -59,12 +59,17 @@ void setup() {
   
   potentiometerValue = analogRead(potentiometerPin);
   targetTemp = newTargetTemp = map(potentiometerValue, 0, 1023, roomTemp, 99);
-
-  //Serial.begin(9600);
 }
 
 unsigned int showTargetTempDuration = 2500;
 unsigned long showTargetTempStartTime;
+
+// cooldown time for mosfet switching
+unsigned int mosfetDebounceTimespan = 2000;
+unsigned int mosfetDebounceStartTime;
+boolean mosfetDebounceState = false;
+const int NOT_DEBOUNCING = 0;
+const int DEBOUNCING = 1;
 
 void loop() {
   if ((millis()%250) == 0) {
@@ -74,29 +79,13 @@ void loop() {
     T = (1.0 / (c1 + c2*logR2 + c3*logR2*logR2*logR2));
     T = T - 273.15;
 
+    // Read potentiometer value and project it onto the adjustable range
     potentiometerValue = analogRead(potentiometerPin);
     targetTemp = map(potentiometerValue, 0, 1023, roomTemp + tempOffset, 99);
-    
-    //Serial.print(targetTemp);
-    //Serial.println(" (target)");
-    //Serial.print(T);
-    //Serial.println(" (temp °C)");
-    //Serial.print(newTargetTemp);
-    //Serial.println(" (new target)");
 
+    // Show adjusted temperature for X seconds on change, otherwise show current measurement
     if(targetTemp != newTargetTemp) {
           showTargetTempStartTime = millis();
-          //Serial.println("TARGET CHANGE");
-          Serial.println(millis());
-          Serial.println(showTargetTempStartTime);
-          Serial.println(showTargetTempStartTime + showTargetTempDuration);
-    }
-
-    if(T + tempOffset < targetTemp) {
-        digitalWrite(mosfetPin, HIGH);
-        //Serial.println("HEATING");
-    } else {
-        digitalWrite(mosfetPin, LOW);
     }
 
     if(millis() < (showTargetTempStartTime + showTargetTempDuration)) {
@@ -104,6 +93,29 @@ void loop() {
       sevseg.setNumber(targetTemp);
     } else {
       sevseg.setNumber(T);
+    }
+
+    // Control mosfet with cooldown time for relay triggering
+    if(T < targetTemp) {
+      if(mosfetDebounceState == DEBOUNCING) {
+        if(millis() > (mosfetDebounceStartTime + mosfetDebounceTimespan)) {
+          mosfetDebounceState = NOT_DEBOUNCING;
+        }
+      } else {
+        digitalWrite(mosfetPin, HIGH);
+        mosfetDebounceState = DEBOUNCING;
+        mosfetDebounceStartTime = millis();
+      }
+    } else {
+      if(mosfetDebounceState == DEBOUNCING) {
+        if(millis() > mosfetDebounceStartTime + mosfetDebounceTimespan) {
+          mosfetDebounceState = NOT_DEBOUNCING;
+        }
+      } else {
+        mosfetDebounceState = DEBOUNCING;
+        mosfetDebounceStartTime = millis();
+        digitalWrite(mosfetPin, LOW);
+      }
     }
   }
   
